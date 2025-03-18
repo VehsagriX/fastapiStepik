@@ -4,9 +4,9 @@ from fastapi.params import Depends
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
-from .models.models import FeedbackORM
-from .schemas.user_schemas import FeedbackDTO, FeedbackRequestDTO
-from .database import engine, my_session, Base
+from src.models.models import FeedbackORM
+from src.schemas.user_schemas import FeedbackDTO, FeedbackRequestDTO, UserCreate
+from src.database import engine, my_session, Base
 
 app = FastAPI()
 
@@ -61,6 +61,16 @@ async def get_feedbacks(db: Session = Depends(get_db)) -> list[FeedbackRequestDT
     print(data)
     result = [FeedbackRequestDTO.model_validate(f) for f in data]
     return result
+
+
+
+
+@app.post("/create_user")
+async def create_user(user: UserCreate) -> UserCreate:
+    return user
+
+
+
 
 # @app.get("/custom")
 # async def read_custom_message():

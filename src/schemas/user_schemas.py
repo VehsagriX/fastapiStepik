@@ -1,4 +1,13 @@
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, EmailStr, PositiveInt
+
+
+class UserCreate(BaseModel):
+    name: str
+    email: EmailStr
+    age: PositiveInt | None = None
+    is_subscribed: bool = False
+
+
 
 
 class UserDTO(BaseModel):
