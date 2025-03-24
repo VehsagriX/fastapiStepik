@@ -38,3 +38,7 @@ class FeedbackRequestDTO(FeedbackDTO):
 
     class Config:
         from_attributes = True
+
+class LoginDTO(BaseModel):
+    username: str
+    password: str
