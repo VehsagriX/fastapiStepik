@@ -1,15 +1,31 @@
 import uvicorn
-from fastapi import FastAPI, Response, HTTPException, Cookie
+from fastapi import FastAPI, Response, HTTPException, Cookie, Header
 from fastapi.params import Depends
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 from uuid import uuid4
+from typing import Annotated
 
 from src.models.models import FeedbackORM
 from src.schemas.user_schemas import FeedbackDTO, FeedbackRequestDTO, UserCreate, LoginDTO
 from src.database import engine, my_session, Base
 
 app = FastAPI()
+
+
+"""
+HELP
+1.Header — используется для извлечения данных из заголовков HTTP-запроса. Например, с его помощью можно получить данные из 
+    заголовков, таких как X-Token, User-Agent, и других метаданных запроса.
+
+2.Path — используется для получения данных из части URL, которая является параметром пути (или маршрута). 
+    Например, в URL /items/{item_id}, параметр item_id может быть извлечён с помощью Path.
+
+3.Query — используется для извлечения данных из строки запроса (query parameters) после знака ? в URL. 
+    Например, в URL /items/?name=apple&count=10, name и count будут параметрами запроса, которые можно получить с помощью Query.
+
+4.Cookie — используется для получения данных из cookies, которые обычно передаются в заголовке Cookie в HTTP-запросе.
+"""
 
 fake_users = {
     1: {"username": "john_doe", "email": "john@example.com"},
@@ -116,7 +132,16 @@ async def user(session_token: str | None = Cookie(None)) -> dict:
     raise HTTPException(status_code=404, detail="Unauthorized")
 
 
+@app.get("/headers")
+async def header_work(user_agent: Annotated[str | None, Header()] = None,
+                      accept_language: Annotated[str | None, Header() ]= None
+                      ) -> dict:
 
+    if user_agent is None or accept_language is None:
+        raise HTTPException(status_code=400, detail="Invalid or missing 'User-Agent' or Accept-Language header")
+    if accept_language != "en-US,en;q=0.9,es;q=0.8":
+        raise HTTPException(status_code=400, detail="Invalid Accept-Language. Format not supported header")
+    return {"User-Agent": user_agent, "Accept-Language": accept_language}
 
 
 if __name__ == "__main__":
