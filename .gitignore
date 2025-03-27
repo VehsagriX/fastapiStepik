@@ -1,7 +1,6 @@
 .venv
 .idea
-
-
+.env
 database.db
-
+Настройка HTTPS на fastapi.txt
 

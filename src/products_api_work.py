@@ -62,5 +62,9 @@ async def get_products(keyword: str, category: str = None, limit: int = 10) -> l
 
 
 
+
+
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

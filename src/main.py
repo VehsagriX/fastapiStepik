@@ -1,13 +1,16 @@
 import uvicorn
-from fastapi import FastAPI, Response, HTTPException, Cookie, Header
-from fastapi.params import Depends
+import secrets
+from fastapi import FastAPI, Response, HTTPException, Cookie, Header, Depends, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 from uuid import uuid4
 from typing import Annotated
 
+
+
 from src.models.models import FeedbackORM
-from src.schemas.user_schemas import FeedbackDTO, FeedbackRequestDTO, UserCreate, LoginDTO
+from src.schemas.user_schemas import FeedbackDTO, FeedbackRequestDTO, UserCreate, LoginDTO, Token, User
 from src.database import engine, my_session, Base
 
 app = FastAPI()
@@ -142,6 +145,65 @@ async def header_work(user_agent: Annotated[str | None, Header()] = None,
     if accept_language != "en-US,en;q=0.9,es;q=0.8":
         raise HTTPException(status_code=400, detail="Invalid Accept-Language. Format not supported header")
     return {"User-Agent": user_agent, "Accept-Language": accept_language}
+
+
+
+#Реализация базовой аутентификации
+
+security = HTTPBasic()
+
+user_account_db = [
+    LoginDTO(**{"username": "xasan_xasan", "password": "qwery123"}),
+    LoginDTO(**{"username": "xasan_123", "password": "xasan123"})
+]
+
+
+
+async def get_user_auth(username: str):
+    for my_user in user_account_db:
+        if my_user.username == username:
+            return my_user
+    return None
+
+
+async def authenticate_user(credentials: HTTPBasicCredentials = Depends(security)):
+    my_user = await get_user_auth(credentials.username)
+
+    if my_user is None or not secrets.compare_digest(my_user.password, credentials.password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid credentials",
+                            headers={"WWW-Authenticate": "Basic"}
+                            )
+    return my_user
+
+@app.get('/auth')
+async def base_authenticate(user: LoginDTO = Depends(authenticate_user)):
+    return {"message": "You got my secret, welcome"}
+
+
+
+
+
+#Реализация JWT Аутентификации
+
+from src.jwt_token_exemple import  create_jwt_token, get_user_from_token, jwt_authenticate_user
+
+
+
+
+@app.post("/users/jwt")
+async def get_token(user_in: LoginDTO) -> Token:
+    user = jwt_authenticate_user(user_in.username, user_in.password)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid login or password')
+    token = create_jwt_token({"sub": user.username})
+    return Token(access_token=token, token_type="Bearer")
+
+
+
+@app.get("/protected_resource", response_model=User)
+async def protected_resource(current_user: Annotated[User, Depends(get_user_from_token)]):
+    return current_user
 
 
 if __name__ == "__main__":

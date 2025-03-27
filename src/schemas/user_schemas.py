@@ -42,3 +42,23 @@ class FeedbackRequestDTO(FeedbackDTO):
 class LoginDTO(BaseModel):
     username: str
     password: str
+
+
+
+
+class User(BaseModel):
+    username: str
+    email: str | None = None
+    full_name: str | None = None
+    active: bool | None = None
+
+
+class UserInDB(User):
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: str | None = None
