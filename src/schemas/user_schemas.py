@@ -1,3 +1,5 @@
+from enum import Enum
+
 from pydantic import BaseModel, computed_field, EmailStr, PositiveInt
 
 
@@ -6,8 +8,6 @@ class UserCreate(BaseModel):
     email: EmailStr
     age: PositiveInt | None = None
     is_subscribed: bool = False
-
-
 
 
 class UserDTO(BaseModel):
@@ -27,7 +27,6 @@ class UserDTO(BaseModel):
         return self.age >= 18
 
 
-
 class FeedbackDTO(BaseModel):
     name: str
     message: str
@@ -39,26 +38,40 @@ class FeedbackRequestDTO(FeedbackDTO):
     class Config:
         from_attributes = True
 
+
 class LoginDTO(BaseModel):
     username: str
     password: str
 
 
 
+class Role(Enum):
+    ADMIN = "admin"
+    USER = "user"
+    GUEST = "guest"
 
-class User(BaseModel):
-    username: str
-    email: str | None = None
-    full_name: str | None = None
+
+
+class CreateUserDTO(LoginDTO):
+
+    full_name: str
+    email: EmailStr
+    age: int
+
+
+
+class User(CreateUserDTO):
+    user_id: int | None = None
     active: bool | None = None
+    roles: list[Role] | None
 
 
-class UserInDB(User):
-    password: str
+
 
 class Token(BaseModel):
     access_token: str
     token_type: str
+
 
 class TokenData(BaseModel):
     username: str | None = None

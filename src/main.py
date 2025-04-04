@@ -10,7 +10,7 @@ from typing import Annotated
 
 
 from src.models.models import FeedbackORM
-from src.schemas.user_schemas import FeedbackDTO, FeedbackRequestDTO, UserCreate, LoginDTO, Token, User
+from src.schemas.user_schemas import FeedbackDTO, FeedbackRequestDTO, CreateUserDTO, LoginDTO, Token, User, Role
 from src.database import engine, my_session, Base
 
 app = FastAPI()
@@ -84,10 +84,6 @@ async def get_feedbacks(db: Session = Depends(get_db)) -> list[FeedbackRequestDT
 
 
 
-
-@app.post("/create_user")
-async def create_user(user: UserCreate) -> UserCreate:
-    return user
 
 
 
@@ -185,25 +181,51 @@ async def base_authenticate(user: LoginDTO = Depends(authenticate_user)):
 
 
 #Реализация JWT Аутентификации
+from fastapi.security import OAuth2PasswordRequestForm
+from src.security import  create_jwt_token, jwt_authenticate_user
+from src.dependencies import get_current_user
+from src.database import USERS_DATA_JWT, create_user
+from src.hash_pass import get_password_hash
 
-from src.jwt_token_exemple import  create_jwt_token, get_user_from_token, jwt_authenticate_user
+
+@app.post("/create_user")
+async def add_user(new_user: CreateUserDTO)-> dict:
+
+    user_id = len(USERS_DATA_JWT) + 1
+    new_user.password = await get_password_hash(new_user.password)
+    user_in_db = User(
+        user_id=user_id,
+        username=new_user.username,
+        full_name=new_user.full_name,
+        email=new_user.email,
+        age=new_user.age,
+        password=new_user.password,
+        active=True,
+        roles=[Role.GUEST]
+    )
+    result = await create_user(user_in_db)
+    return result
 
 
-
-
-@app.post("/users/jwt")
-async def get_token(user_in: LoginDTO) -> Token:
-    user = jwt_authenticate_user(user_in.username, user_in.password)
+@app.post("/singin")
+async def get_token(user_in: Annotated[OAuth2PasswordRequestForm, Depends()]) -> Token:
+    user = await jwt_authenticate_user(user_in.username, user_in.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid login or password')
-    token = create_jwt_token({"sub": user.username})
+    token = create_jwt_token({"sub": user.username, "user_id": user.user_id})
     return Token(access_token=token, token_type="Bearer")
 
 
 
 @app.get("/protected_resource", response_model=User)
-async def protected_resource(current_user: Annotated[User, Depends(get_user_from_token)]):
+async def protected_resource(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+
+#RBAC( Role Based Access Control)
+
+
 
 
 if __name__ == "__main__":

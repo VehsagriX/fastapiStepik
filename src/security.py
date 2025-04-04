@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import  timedelta, datetime, timezone
 
 import jwt  # тут используем библиотеку PyJWT
 import os
@@ -7,7 +7,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
 from src.hash_pass import verify_password
-from src.schemas.user_schemas import UserInDB, TokenData
+from src.database import get_user
+from src.schemas.user_schemas import User
 
 """
 JWT состоит из трех частей, разделённых точками: заголовка (header), полезной нагрузки (payload) и подписи (signature):
@@ -30,43 +31,24 @@ SECRET_KEY = os.getenv(
     "SECRET_KEY")  # в реальной практике используем что-нибудь вроде команды Bash (Linux) 'openssl rand -hex 32'
 
 ALGORITHM = "HS256"  # плюс в реальной жизни устанавливаем "время жизни" токена
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = timedelta(minutes=3)
 
 # Пример информации из БД
 
 
-USERS_DATA_JWT = {
-    "aran": {
-        "username": "aran",
-        "password": "$2b$12$tq03gUXQneWVvO/zb3joqOqFAy5e8lkUpXbnUmYDeBXhuXpVXDtXi",  # qwerty123
-        "email": "blabla.@gmail.com",
-        "active": True,
-    },
-    "xasan": {
-        "username": "xasan",
-        "password": "$2b$12$BgADnTMnOLECsDOzpU8S7uHhF40kF5yXLb2sbJd8Euf/knNctiJHu",  # qwerty111
-        "email": "xasan.@gmail.com",
-        "active": False,
-    },
-    # в реальной БД храним только ХЭШИ паролей (например, с помощью библиотеки 'passlib') + соль (известная только нам добавка к паролю)
-}
 
 
-def get_user(username: str, fake_db=None):
-    if fake_db is None:
-        fake_db = USERS_DATA_JWT
-    if username in fake_db:
-        user_dict = fake_db[username]
-        print(user_dict)
-        return UserInDB(**user_dict)
+
 
 
 # Функция для получения пользовательских данных на основе имени пользователя
-def jwt_authenticate_user(username: str, password: str):
-    user = get_user(username)
+async def jwt_authenticate_user(username: str, password: str):
+    user = await get_user(username)
+    print(user)
+    user = User(**user)
     if not user:
         return False
-    if not verify_password(password, user.password):
+    if not await verify_password(password, user.password):
         return False
     return user
 
@@ -74,9 +56,9 @@ def jwt_authenticate_user(username: str, password: str):
 # Функция для создания JWT токена
 def create_jwt_token(data: dict):
     to_encode = data.copy()
-    expire = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(data, SECRET_KEY,
+    expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+    to_encode.update({'exp': expire})
+    return jwt.encode(to_encode, SECRET_KEY,
                       algorithm=ALGORITHM)  # кодируем токен, передавая в него наш словарь с нужной информацией
 
 
@@ -84,21 +66,13 @@ def create_jwt_token(data: dict):
 def get_user_from_token(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # декодируем токен
-        username = payload.get(
-            "sub")  # извлекаем утверждение о пользователе (subject); можем также использовать другие данные, например, "iss" (issuer) или "exp" (expiration time)
-        if username is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        token_data = TokenData(username=username)
+        return payload.get("sub")  # извлекаем утверждение о пользователе (subject); можем также использовать другие данные,
+                                    # например, "iss" (issuer) или "exp" (expiration time)
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail='Истекло время жизни токена')
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Истекло время жизни токена')
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401,
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                              detail='Неправильный токен',
                              headers={"WWW-Authenticate": "Bearer"})  # логика обработки ошибки декодирования токена
 
-    user = get_user(token_data.username, fake_db=USERS_DATA_JWT)
-    return user
+
